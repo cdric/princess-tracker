@@ -12,6 +12,32 @@ const CABINS = [
     'I' => 'Interior',
 ];
 
+const ALERT_TYPES = [
+    'price_drop' => 'Price drop',
+    'availability' => 'Back in stock',
+];
+
+function normalize_alert_type(string $alertType): string
+{
+    $alertType = trim(strtolower($alertType));
+    return array_key_exists($alertType, ALERT_TYPES) ? $alertType : 'price_drop';
+}
+
+function alert_type_label(string $alertType): string
+{
+    $alertType = normalize_alert_type($alertType);
+    return ALERT_TYPES[$alertType];
+}
+
+function check_source_label(?string $source): string
+{
+    return match (strtolower((string)$source)) {
+        'cron' => 'Cron job',
+        'manual' => 'Web',
+        default => 'Unknown',
+    };
+}
+
 function default_booking_agency(string $currencyCode): array
 {
     return [
@@ -342,37 +368,136 @@ function check_price_alerts(array $rows): void
             if (($row['cabin_code'] ?? '') !== $watch['cabin_code']) {
                 continue;
             }
-            if ($row['fare_per_person'] === null) {
-                continue;
-            }
-
-            $current = (float)$row['fare_per_person'];
-            $target = (float)$watch['target_price_per_person'];
-            if ($current > $target) {
-                continue;
-            }
-            if ($watch['last_alert_price'] !== null && $current >= (float)$watch['last_alert_price']) {
-                continue;
-            }
-
-            $currency = $row['currency'] ?? '';
-            $subject = sprintf('Princess price drop: %s %s %s %s', $row['cruise_id'], $row['cabin_name'], $currency, number_format($current, 0));
-            $body = "Cruise: {$row['cruise_id']}\n";
-            $body .= "Cabin: {$row['cabin_name']} ({$row['cabin_code']})\n";
-            $body .= "Category: " . ($row['category_id'] ?? '') . "\n";
-            $body .= "Current fare per person: {$currency} " . number_format($current, 0) . "\n";
-            $body .= "Target fare per person: {$currency} " . number_format($target, 0) . "\n";
-            $body .= "Estimated taxes/fees per person: " . ($row['taxes_fees_per_person'] ?? '') . "\n";
-            $body .= "Estimated total per person: " . ($row['total_per_person'] ?? '') . "\n";
-            $body .= "Estimated total for two: " . ($row['total_for_two'] ?? '') . "\n";
-            $body .= "Availability: " . ($row['availability'] ?? '') . "\n";
-            $body .= "Available cabins: " . ($row['available_cabins'] ?? '') . "\n";
-            $body .= "Checked at: " . now_iso() . "\n";
-
-            send_tracker_email($watch['email_to'], $subject, $body);
-
-            $stmt = db()->prepare('UPDATE watches SET last_alert_price = ?, last_alert_at = ? WHERE id = ?');
-            $stmt->execute([$current, now_iso(), $watch['id']]);
+            process_watch_alert($watch, $row);
         }
     }
+}
+
+function process_watch_alert(array $watch, array $row): void
+{
+    $alertType = normalize_alert_type((string)($watch['alert_type'] ?? 'price_drop'));
+    $lastSeenStatus = $watch['last_seen_status'] ?? null;
+    $currentStatus = (string)($row['status'] ?? '');
+
+    if ($alertType === 'availability') {
+        $shouldNotify = $currentStatus === 'Available' && $lastSeenStatus === 'Sold out';
+        if ($shouldNotify) {
+            $message = build_watch_alert_message($watch, $row, $alertType);
+            send_tracker_email($watch['email_to'], $message['subject'], $message['text'], $message['html']);
+            update_watch_alert_state($watch['id'], null, now_iso(), $currentStatus);
+            return;
+        }
+
+        update_watch_alert_state(
+            (int)$watch['id'],
+            $watch['last_alert_price'] !== null ? (float)$watch['last_alert_price'] : null,
+            $watch['last_alert_at'] ?: null,
+            $currentStatus
+        );
+        return;
+    }
+
+    if ($row['fare_per_person'] === null) {
+        update_watch_alert_state(
+            (int)$watch['id'],
+            $watch['last_alert_price'] !== null ? (float)$watch['last_alert_price'] : null,
+            $watch['last_alert_at'] ?: null,
+            $currentStatus
+        );
+        return;
+    }
+
+    $current = (float)$row['fare_per_person'];
+    $target = (float)$watch['target_price_per_person'];
+    if ($current > $target) {
+        update_watch_alert_state(
+            (int)$watch['id'],
+            $watch['last_alert_price'] !== null ? (float)$watch['last_alert_price'] : null,
+            $watch['last_alert_at'] ?: null,
+            $currentStatus
+        );
+        return;
+    }
+    if ($watch['last_alert_price'] !== null && $current >= (float)$watch['last_alert_price']) {
+        update_watch_alert_state(
+            (int)$watch['id'],
+            (float)$watch['last_alert_price'],
+            $watch['last_alert_at'] ?: null,
+            $currentStatus
+        );
+        return;
+    }
+
+    $message = build_watch_alert_message($watch, $row, $alertType);
+    send_tracker_email($watch['email_to'], $message['subject'], $message['text'], $message['html']);
+    update_watch_alert_state((int)$watch['id'], $current, now_iso(), $currentStatus);
+}
+
+function build_watch_alert_message(array $watch, array $row, string $alertType): array
+{
+    $currency = (string)($row['currency'] ?? '');
+    $currencyPrefix = $currency !== '' ? $currency . ' ' : '';
+    $checkedAt = now_iso();
+    $alertLabel = alert_type_label($alertType);
+    $status = (string)($row['status'] ?? '');
+    $subject = $alertType === 'availability'
+        ? sprintf('Princess cabin available: %s %s', $row['cruise_id'], $row['cabin_name'])
+        : sprintf('Princess price drop: %s %s %s%s', $row['cruise_id'], $row['cabin_name'], $currencyPrefix, number_format((float)$row['fare_per_person'], 0));
+
+    $details = [
+        'Cruise' => (string)$row['cruise_id'],
+        'Cabin' => (string)$row['cabin_name'] . ' (' . (string)$row['cabin_code'] . ')',
+        'Alert type' => $alertLabel,
+        'Status' => $status,
+        'Category' => (string)($row['category_id'] ?? ''),
+        'Current fare per person' => $row['fare_per_person'] !== null ? $currencyPrefix . number_format((float)$row['fare_per_person'], 0) : 'Not available',
+        'Target fare per person' => $alertType === 'price_drop' ? $currencyPrefix . number_format((float)$watch['target_price_per_person'], 0) : 'Not used for this alert',
+        'Estimated taxes/fees per person' => $row['taxes_fees_per_person'] !== null ? $currencyPrefix . number_format((float)$row['taxes_fees_per_person'], 0) : '',
+        'Estimated total per person' => $row['total_per_person'] !== null ? $currencyPrefix . number_format((float)$row['total_per_person'], 0) : '',
+        'Estimated total for two' => $row['total_for_two'] !== null ? $currencyPrefix . number_format((float)$row['total_for_two'], 0) : '',
+        'Availability' => (string)($row['availability'] ?? ''),
+        'Available cabins' => (string)($row['available_cabins'] ?? ''),
+        'Checked at' => $checkedAt,
+    ];
+
+    $textLines = [];
+    foreach ($details as $label => $value) {
+        if ($value === '') {
+            continue;
+        }
+        $textLines[] = $label . ': ' . $value;
+    }
+
+    $htmlRows = [];
+    foreach ($details as $label => $value) {
+        if ($value === '') {
+            continue;
+        }
+        $htmlRows[] = '<tr>'
+            . '<th style="padding:10px 12px; text-align:left; color:#475569; border-bottom:1px solid #e2e8f0; width:38%;">' . h($label) . '</th>'
+            . '<td style="padding:10px 12px; color:#0f172a; border-bottom:1px solid #e2e8f0;">' . h($value) . '</td>'
+            . '</tr>';
+    }
+
+    $headline = $alertType === 'availability'
+        ? 'A sold out cabin is available again.'
+        : 'A tracked fare dropped to your target.';
+
+    $html = '<!doctype html><html lang="en"><body style="margin:0; padding:24px; background:#f8fafc; font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif; color:#0f172a;">'
+        . '<div style="max-width:680px; margin:0 auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:20px; overflow:hidden;">'
+        . '<div style="padding:24px 28px; background:linear-gradient(135deg,#0f766e,#134e4a); color:#ffffff;">'
+        . '<p style="margin:0 0 8px; font-size:12px; letter-spacing:0.08em; text-transform:uppercase; opacity:0.85;">Princess Tracker Alert</p>'
+        . '<h1 style="margin:0; font-size:28px; line-height:1.2;">' . h($row['cruise_id'] . ' ' . $row['cabin_name']) . '</h1>'
+        . '<p style="margin:12px 0 0; font-size:15px; opacity:0.92;">' . h($headline) . '</p>'
+        . '</div>'
+        . '<div style="padding:24px 28px;">'
+        . '<table style="width:100%; border-collapse:collapse; font-size:14px;">' . implode('', $htmlRows) . '</table>'
+        . '<p style="margin:20px 0 0; color:#64748b; font-size:13px;">Generated by the Princess cruise price tracker.</p>'
+        . '</div></div></body></html>';
+
+    return [
+        'subject' => $subject,
+        'text' => implode("\n", $textLines),
+        'html' => $html,
+    ];
 }

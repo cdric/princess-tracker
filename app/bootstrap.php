@@ -25,7 +25,7 @@ if (!function_exists('str_ends_with')) {
     }
 }
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 
 define('PRIVATE_ROOT', dirname(__DIR__));
 define('APP_ROOT', __DIR__);

@@ -3,7 +3,11 @@ require_once __DIR__ . '/_init.php';
 require_login();
 
 $cruiseIds = distinct_cruise_ids();
-$selectedCruise = trim($_GET['cruise_id'] ?? env_value('DEFAULT_CRUISE_ID', 'H630'));
+$fallbackCruise = $cruiseIds[0] ?? env_value('DEFAULT_CRUISE_ID', 'H630');
+$selectedCruise = trim($_GET['cruise_id'] ?? $fallbackCruise);
+if ($cruiseIds && !in_array($selectedCruise, $cruiseIds, true)) {
+    $selectedCruise = $fallbackCruise;
+}
 $rows = latest_history($selectedCruise ?: null, 500);
 
 render_header('Price history');
@@ -11,10 +15,11 @@ render_header('Price history');
 <section class="card">
   <form method="get" class="inline-form">
     <label>Cruise code</label>
-    <input name="cruise_id" value="<?= h($selectedCruise) ?>" list="cruise_ids" required>
-    <datalist id="cruise_ids">
-      <?php foreach ($cruiseIds as $id): ?><option value="<?= h($id) ?>"><?php endforeach; ?>
-    </datalist>
+    <select name="cruise_id" required>
+      <?php foreach ($cruiseIds ?: [$selectedCruise] as $id): ?>
+        <option value="<?= h($id) ?>" <?= $id === $selectedCruise ? 'selected' : '' ?>><?= h($id) ?></option>
+      <?php endforeach; ?>
+    </select>
     <button type="submit">Load history</button>
   </form>
 </section>
@@ -24,7 +29,7 @@ render_header('Price history');
   <table>
     <thead>
       <tr>
-        <th>Checked at</th><th>Cruise</th><th>Cabin</th><th>Status</th><th>Category</th><th>Currency</th>
+        <th>Checked at</th><th>Source</th><th>Cruise</th><th>Cabin</th><th>Status</th><th>Category</th><th>Currency</th>
         <th>Fare pp</th><th>Taxes/fees pp</th><th>Total pp</th><th>Total for 2</th><th>Available cabins</th>
       </tr>
     </thead>
@@ -32,6 +37,9 @@ render_header('Price history');
       <?php foreach ($rows as $r): ?>
         <tr>
           <td><?= h($r['checked_at']) ?></td>
+          <?php $source = check_source_label($r['check_source'] ?? null); ?>
+          <?php $sourceClass = $source === 'Cron job' ? 'source-cron' : ($source === 'Web' ? 'source-web' : ''); ?>
+          <td><span class="pill <?= h($sourceClass) ?>"><?= h($source) ?></span></td>
           <td><?= h($r['cruise_id']) ?></td>
           <td><?= h($r['cabin_name']) ?></td>
           <td><span class="pill <?= $r['status'] === 'Available' ? 'ok' : 'sold' ?>"><?= h($r['status']) ?></span></td>

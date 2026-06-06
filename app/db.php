@@ -65,6 +65,7 @@ function init_db(): void
     } else {
         init_db_sqlite($pdo);
     }
+    ensure_schema_upgrades($pdo);
 }
 
 function init_db_sqlite(PDO $pdo): void
@@ -114,9 +115,11 @@ CREATE TABLE IF NOT EXISTS watches (
     cabin_code TEXT NOT NULL,
     target_price_per_person REAL NOT NULL,
     email_to TEXT NOT NULL,
+    alert_type TEXT NOT NULL DEFAULT 'price_drop',
     enabled INTEGER NOT NULL DEFAULT 1,
     last_alert_price REAL,
     last_alert_at TEXT,
+    last_seen_status TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 )
 SQL);
@@ -175,13 +178,57 @@ CREATE TABLE IF NOT EXISTS watches (
     cabin_code VARCHAR(8) NOT NULL,
     target_price_per_person DECIMAL(12,2) NOT NULL,
     email_to VARCHAR(255) NOT NULL,
+    alert_type VARCHAR(32) NOT NULL DEFAULT 'price_drop',
     enabled TINYINT(1) NOT NULL DEFAULT 1,
     last_alert_price DECIMAL(12,2),
     last_alert_at VARCHAR(40),
+    last_seen_status VARCHAR(32),
     created_at VARCHAR(40) NOT NULL,
     INDEX idx_watches_enabled (enabled, cruise_id, cabin_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 SQL);
+}
+
+function ensure_schema_upgrades(PDO $pdo): void
+{
+    $driver = db_driver();
+
+    if (!table_column_exists($pdo, 'watches', 'alert_type')) {
+        $sql = $driver === 'mysql'
+            ? "ALTER TABLE watches ADD COLUMN alert_type VARCHAR(32) NOT NULL DEFAULT 'price_drop'"
+            : "ALTER TABLE watches ADD COLUMN alert_type TEXT NOT NULL DEFAULT 'price_drop'";
+        $pdo->exec($sql);
+    }
+
+    if (!table_column_exists($pdo, 'watches', 'last_seen_status')) {
+        $sql = $driver === 'mysql'
+            ? 'ALTER TABLE watches ADD COLUMN last_seen_status VARCHAR(32)'
+            : 'ALTER TABLE watches ADD COLUMN last_seen_status TEXT';
+        $pdo->exec($sql);
+    }
+}
+
+function table_column_exists(PDO $pdo, string $table, string $column): bool
+{
+    if (db_driver() === 'mysql') {
+        $stmt = $pdo->query('SHOW COLUMNS FROM ' . $table);
+        $columns = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+        foreach ($columns as $row) {
+            if (($row['Field'] ?? '') === $column) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    $stmt = $pdo->query('PRAGMA table_info(' . $table . ')');
+    $columns = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+    foreach ($columns as $row) {
+        if (($row['name'] ?? '') === $column) {
+            return true;
+        }
+    }
+    return false;
 }
 
 function insert_raw_response(string $source, string $cruiseId, array $payload, array $response, string $checkedAt): int
@@ -237,14 +284,27 @@ SQL);
 function latest_history(?string $cruiseId = null, int $limit = 300): array
 {
     if ($cruiseId) {
-        $stmt = db()->prepare('SELECT * FROM price_checks WHERE cruise_id = ? ORDER BY checked_at DESC, cabin_code LIMIT ?');
+        $stmt = db()->prepare(<<<SQL
+SELECT price_checks.*, raw_api_responses.source AS check_source
+FROM price_checks
+LEFT JOIN raw_api_responses ON raw_api_responses.id = price_checks.raw_response_id
+WHERE price_checks.cruise_id = ?
+ORDER BY price_checks.checked_at DESC, price_checks.cabin_code
+LIMIT ?
+SQL);
         $stmt->bindValue(1, $cruiseId);
         $stmt->bindValue(2, $limit, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
     }
 
-    $stmt = db()->prepare('SELECT * FROM price_checks ORDER BY checked_at DESC, cruise_id, cabin_code LIMIT ?');
+    $stmt = db()->prepare(<<<SQL
+SELECT price_checks.*, raw_api_responses.source AS check_source
+FROM price_checks
+LEFT JOIN raw_api_responses ON raw_api_responses.id = price_checks.raw_response_id
+ORDER BY price_checks.checked_at DESC, price_checks.cruise_id, price_checks.cabin_code
+LIMIT ?
+SQL);
     $stmt->bindValue(1, $limit, PDO::PARAM_INT);
     $stmt->execute();
     return $stmt->fetchAll();
@@ -260,10 +320,24 @@ function get_watches(): array
     return db()->query('SELECT * FROM watches ORDER BY enabled DESC, cruise_id, cabin_code, id DESC')->fetchAll();
 }
 
-function add_watch(string $cruiseId, string $cabinCode, float $targetPrice, string $emailTo): void
+function add_watch(string $cruiseId, string $cabinCode, float $targetPrice, string $emailTo, string $alertType = 'price_drop'): void
 {
-    $stmt = db()->prepare('INSERT INTO watches (cruise_id, cabin_code, target_price_per_person, email_to, enabled, created_at) VALUES (?, ?, ?, ?, 1, ?)');
-    $stmt->execute([$cruiseId, $cabinCode, $targetPrice, $emailTo, now_iso()]);
+    $alertType = normalize_alert_type($alertType);
+    if ($alertType === 'price_drop' && $targetPrice <= 0) {
+        throw new RuntimeException('Target fare per person must be greater than zero for price drop alerts.');
+    }
+
+    $latest = latest_price_row($cruiseId, $cabinCode);
+    $stmt = db()->prepare('INSERT INTO watches (cruise_id, cabin_code, target_price_per_person, email_to, alert_type, enabled, last_seen_status, created_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)');
+    $stmt->execute([
+        $cruiseId,
+        $cabinCode,
+        $alertType === 'price_drop' ? $targetPrice : 0,
+        $emailTo,
+        $alertType,
+        $latest['status'] ?? null,
+        now_iso(),
+    ]);
 }
 
 function set_watch_enabled(int $watchId, bool $enabled): void
@@ -282,4 +356,45 @@ function active_watch_cruise_ids(): array
 {
     $rows = db()->query('SELECT DISTINCT cruise_id FROM watches WHERE enabled = 1 ORDER BY cruise_id')->fetchAll(PDO::FETCH_COLUMN);
     return $rows ?: [];
+}
+
+function latest_price_row(string $cruiseId, string $cabinCode): ?array
+{
+    $stmt = db()->prepare(<<<SQL
+SELECT price_checks.*, raw_api_responses.source AS check_source
+FROM price_checks
+LEFT JOIN raw_api_responses ON raw_api_responses.id = price_checks.raw_response_id
+WHERE price_checks.cruise_id = ? AND price_checks.cabin_code = ?
+ORDER BY price_checks.checked_at DESC, price_checks.id DESC
+LIMIT 1
+SQL);
+    $stmt->execute([$cruiseId, $cabinCode]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+function latest_price_rows_by_cruise(): array
+{
+    $sql = <<<SQL
+SELECT price_checks.*, raw_api_responses.source AS check_source
+FROM price_checks
+LEFT JOIN raw_api_responses ON raw_api_responses.id = price_checks.raw_response_id
+WHERE price_checks.id = (
+    SELECT p2.id
+    FROM price_checks p2
+    WHERE p2.cruise_id = price_checks.cruise_id
+      AND p2.cabin_code = price_checks.cabin_code
+    ORDER BY p2.checked_at DESC, p2.id DESC
+    LIMIT 1
+)
+ORDER BY price_checks.cruise_id, price_checks.cabin_code
+SQL;
+
+    return db()->query($sql)->fetchAll() ?: [];
+}
+
+function update_watch_alert_state(int $watchId, ?float $lastAlertPrice, ?string $lastAlertAt, ?string $lastSeenStatus): void
+{
+    $stmt = db()->prepare('UPDATE watches SET last_alert_price = ?, last_alert_at = ?, last_seen_status = ? WHERE id = ?');
+    $stmt->execute([$lastAlertPrice, $lastAlertAt, $lastSeenStatus, $watchId]);
 }

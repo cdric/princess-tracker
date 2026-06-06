@@ -2,6 +2,24 @@
 
 All notable changes to this project are tracked in this file.
 
+## 1.2.0
+
+### User facing
+
+- Added a second history graph that tracks available cabins across cabin types.
+- Added a source column on the history table to show whether each price check came from the web UI or the cron job.
+- Changed the history page cruise selector to a dropdown of known cruise codes.
+- Changed the admin watch page to use a cruise dropdown and to show the latest known fare for the selected cruise and cabin.
+- Added admin support for back-in-stock email alerts when sold out cabins become available again.
+- Improved alert emails with a formatted HTML layout.
+
+### Non user facing
+
+- Added watch metadata for alert type and last seen cabin status so availability alerts can trigger on sold-out to available transitions.
+- Joined history rows to raw API response metadata to expose check source labels without duplicating source data in the history table.
+- Added schema-upgrade handling for existing watch tables so new alert fields can be added in place.
+- Added richer alert rendering shared by price-drop and availability notifications.
+
 ## 1.1.0
 
 ### User facing
