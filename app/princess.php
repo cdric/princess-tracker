@@ -31,11 +31,14 @@ function alert_type_label(string $alertType): string
 
 function check_source_label(?string $source): string
 {
-    return match (strtolower((string)$source)) {
-        'cron' => 'Cron job',
-        'manual' => 'Web',
-        default => 'Unknown',
-    };
+    $source = strtolower((string)$source);
+    if ($source === 'cron') {
+        return 'Cron job';
+    }
+    if ($source === 'manual') {
+        return 'Web';
+    }
+    return 'Unknown';
 }
 
 function default_booking_agency(string $currencyCode): array

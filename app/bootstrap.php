@@ -138,7 +138,7 @@ function now_iso(): string
     return gmdate('c');
 }
 
-function redirect_to(string $path): never
+function redirect_to(string $path): void
 {
     header('Location: ' . $path);
     exit;
