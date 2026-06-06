@@ -119,12 +119,12 @@ function app_base_url(): string
     return '';
 }
 
-function h(mixed $value): string
+function h($value): string
 {
     return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-function money_value(mixed $value, ?string $currency = null): string
+function money_value($value, ?string $currency = null): string
 {
     if ($value === null || $value === '') {
         return '';
