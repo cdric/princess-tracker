@@ -17,9 +17,9 @@ jobs:
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.BLUEHOST_SSH_KEY }}
-          SSH_HOST: ${{ secrets.BLUEHOST_HOST }}
-          SSH_USER: ${{ secrets.BLUEHOST_USERNAME }}
-          SSH_PORT: ${{ secrets.BLUEHOST_PORT }}
+          SSH_HOST: ${{ vars.BLUEHOST_HOST }}
+          SSH_USER: ${{ vars.BLUEHOST_USERNAME }}
+          SSH_PORT: ${{ vars.BLUEHOST_PORT }}
         run: |
           set -euo pipefail
 
@@ -51,8 +51,8 @@ jobs:
 
       - name: Prepare Bluehost directories
         env:
-          BLUEHOST_PUBLIC_PATH: ${{ secrets.BLUEHOST_PUBLIC_PATH }}
-          BLUEHOST_PRIVATE_PATH: ${{ secrets.BLUEHOST_PRIVATE_PATH }}
+          BLUEHOST_PUBLIC_PATH: ${{ vars.BLUEHOST_PUBLIC_PATH }}
+          BLUEHOST_PRIVATE_PATH: ${{ vars.BLUEHOST_PRIVATE_PATH }}
         run: |
           set -euo pipefail
 
@@ -67,7 +67,7 @@ jobs:
 
       - name: Deploy public files
         env:
-          BLUEHOST_PUBLIC_PATH: ${{ secrets.BLUEHOST_PUBLIC_PATH }}
+          BLUEHOST_PUBLIC_PATH: ${{ vars.BLUEHOST_PUBLIC_PATH }}
         run: |
           set -euo pipefail
 
@@ -78,7 +78,7 @@ jobs:
 
       - name: Deploy private app files
         env:
-          BLUEHOST_PRIVATE_PATH: ${{ secrets.BLUEHOST_PRIVATE_PATH }}
+          BLUEHOST_PRIVATE_PATH: ${{ vars.BLUEHOST_PRIVATE_PATH }}
         run: |
           set -euo pipefail
 
@@ -94,8 +94,8 @@ jobs:
 
       - name: Finalize permissions
         env:
-          BLUEHOST_PUBLIC_PATH: ${{ secrets.BLUEHOST_PUBLIC_PATH }}
-          BLUEHOST_PRIVATE_PATH: ${{ secrets.BLUEHOST_PRIVATE_PATH }}
+          BLUEHOST_PUBLIC_PATH: ${{ vars.BLUEHOST_PUBLIC_PATH }}
+          BLUEHOST_PRIVATE_PATH: ${{ vars.BLUEHOST_PRIVATE_PATH }}
         run: |
           set -euo pipefail
 
