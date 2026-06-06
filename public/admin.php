@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/_init.php';
-require_login();
+require_admin();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';

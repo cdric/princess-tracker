@@ -9,8 +9,9 @@ $error = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
     $password = (string)($_POST['password'] ?? '');
-    if (attempt_login($username, $password)) {
-        login_user();
+    $account = authenticate_user($username, $password);
+    if ($account !== null) {
+        login_user($account);
         redirect_to('index.php');
     }
     $error = 'Invalid username or password.';

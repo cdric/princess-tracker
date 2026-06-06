@@ -71,9 +71,12 @@ Default login comes from `.env`:
 ```env
 APP_USERNAME=admin
 APP_PASSWORD=change-this-password
+APP_USER_USERNAME=user
+APP_USER_PASSWORD=change-this-user-password
 ```
 
-Change it before using the app.
+The admin account can access every page. The user account is restricted to `Check cruise price`, `History`, and `Logout`.
+Change both before using the app.
 
 ## Required PHP extensions
 
@@ -237,6 +240,8 @@ Important values:
 ```env
 APP_USERNAME=admin
 APP_PASSWORD=your-strong-password
+APP_USER_USERNAME=user
+APP_USER_PASSWORD=your-user-password
 MAIL_FROM=your-real-email@yourdomain.com
 DB_DRIVER=sqlite
 PRINCESS_DB_PATH=storage/tracker.sqlite

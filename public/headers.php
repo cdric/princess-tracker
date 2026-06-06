@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/_init.php';
-require_login();
+require_admin();
 
 $currentHeaders = null;
 if (is_file(headers_file_path())) {

@@ -11,7 +11,10 @@ try {
     render_header('Price results');
 } catch (Throwable $e) {
     render_header('Price check failed');
-    echo '<section class="card"><div class="flash error">' . h($e->getMessage()) . '</div><p><a href="headers.php">Update headers</a> or try again.</p></section>';
+    $help = is_admin()
+        ? '<p><a href="headers.php">Update headers</a> or try again.</p>'
+        : '<p>Please contact an administrator or try again later.</p>';
+    echo '<section class="card"><div class="flash error">' . h($e->getMessage()) . '</div>' . $help . '</section>';
     render_footer();
     exit;
 }

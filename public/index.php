@@ -38,6 +38,7 @@ render_header('Check cruise price');
     </div>
   </form>
 </section>
+<?php if (is_admin()): ?>
 <section class="card">
   <h2>Operational notes</h2>
   <ul>
@@ -46,4 +47,5 @@ render_header('Check cruise price');
     <li>The graph uses fare per person. Taxes and fees are stored separately when returned.</li>
   </ul>
 </section>
+<?php endif; ?>
 <?php render_footer(); ?>

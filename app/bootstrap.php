@@ -25,7 +25,7 @@ if (!function_exists('str_ends_with')) {
     }
 }
 
-const APP_VERSION = '1.0.0-php';
+const APP_VERSION = '1.1.0';
 
 define('PRIVATE_ROOT', dirname(__DIR__));
 define('APP_ROOT', __DIR__);
@@ -163,6 +163,7 @@ function render_header(string $title): void
 {
     $flash = flash_get();
     $isLoggedIn = !empty($_SESSION['logged_in']);
+    $isAdmin = $isLoggedIn && is_admin();
     echo '<!doctype html><html lang="en"><head><meta charset="utf-8">';
     echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . h($title) . '</title>';
@@ -170,7 +171,11 @@ function render_header(string $title): void
     echo '</head><body><main class="page">';
     echo '<header class="topbar"><div><h1>' . h($title) . '</h1><p class="muted">Princess cruise price tracker</p></div>';
     if ($isLoggedIn) {
-        echo '<nav><a href="index.php">Check</a><a href="history.php">History</a><a href="admin.php">Admin</a><a href="headers.php">Headers</a><a href="logout.php">Logout</a></nav>';
+        echo '<nav><a href="index.php">Check cruise price</a><a href="history.php">History</a>';
+        if ($isAdmin) {
+            echo '<a href="admin.php">Admin</a><a href="headers.php">Headers</a>';
+        }
+        echo '<a href="logout.php">Logout</a></nav>';
     }
     echo '</header>';
     if ($flash) {
