@@ -66,6 +66,8 @@ jobs:
           ssh-keyscan -T 30 -p "$PORT" -H "$BLUEHOST_HOST" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
+          mkdir -p ~/.ssh/controlmasters
+
           cat > ~/.ssh/config <<EOF
           Host bluehost
             HostName $BLUEHOST_HOST
@@ -75,11 +77,17 @@ jobs:
             IdentitiesOnly yes
             IdentityAgent none
             StrictHostKeyChecking yes
+            ServerAliveInterval 30
+            ServerAliveCountMax 3
+            ControlMaster auto
+            ControlPath ~/.ssh/controlmasters/%r@%h:%p
+            ControlPersist 120
           EOF
 
           chmod 600 ~/.ssh/config
 
           ssh bluehost "echo 'SSH OK'; pwd"
+          ssh -MNf bluehost || true
 
       - name: Prepare Bluehost directories
         env:
@@ -103,7 +111,25 @@ jobs:
         run: |
           set -euo pipefail
 
-          rsync -az --delete \
+          retry() {
+            local attempt=1
+            local max_attempts=5
+            local delay=5
+
+            until "$@"; do
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                echo "::error::Command failed after $attempt attempts: $*"
+                return 1
+              fi
+
+              echo "Attempt $attempt failed. Retrying in ${delay}s..."
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
+
+          retry rsync -az --delete \
             --exclude='*.log' \
             -e "ssh" \
             public/ \
@@ -145,12 +171,30 @@ jobs:
         run: |
           set -euo pipefail
 
-          rsync -az --delete \
+          retry() {
+            local attempt=1
+            local max_attempts=5
+            local delay=5
+
+            until "$@"; do
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                echo "::error::Command failed after $attempt attempts: $*"
+                return 1
+              fi
+
+              echo "Attempt $attempt failed. Retrying in ${delay}s..."
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
+
+          retry rsync -az --delete \
             -e "ssh" \
             app/ \
             bluehost:"$BLUEHOST_PRIVATE_PATH/app"/
 
-          rsync -az \
+          retry rsync -az \
             -e "ssh" \
             cron_check.php .env.example \
             bluehost:"$BLUEHOST_PRIVATE_PATH"/
