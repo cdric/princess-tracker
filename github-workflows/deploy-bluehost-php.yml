@@ -9,38 +9,55 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Uncomment this ONLY if your variables are under:
+    # Settings > Environments > production
+    # environment: production
+
+    env:
+      BLUEHOST_HOST: ${{ vars.BLUEHOST_HOST }}
+      BLUEHOST_USERNAME: ${{ vars.BLUEHOST_USERNAME }}
+      BLUEHOST_PORT: ${{ vars.BLUEHOST_PORT }}
+      BLUEHOST_PUBLIC_PATH: ${{ vars.BLUEHOST_PUBLIC_PATH }}
+      BLUEHOST_PRIVATE_PATH: ${{ vars.BLUEHOST_PRIVATE_PATH }}
 
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
 
-      - name: Configure SSH
+      - name: Validate deployment config
         env:
           SSH_PRIVATE_KEY: ${{ secrets.BLUEHOST_SSH_KEY }}
-          SSH_HOST: ${{ vars.BLUEHOST_HOST }}
-          SSH_USER: ${{ vars.BLUEHOST_USERNAME }}
-          SSH_PORT: ${{ vars.BLUEHOST_PORT }}
         run: |
           set -euo pipefail
 
-          PORT="${SSH_PORT:-22}"
+          require_env() {
+            local name="$1"
+            local value="${!name:-}"
+            if [ -z "$value" ]; then
+              echo "::error::$name is missing or empty"
+              exit 1
+            fi
+          }
 
-          if [ -z "${SSH_PRIVATE_KEY:-}" ]; then
-            echo "Missing BLUEHOST_SSH_KEY secret"
-            exit 1
-          fi
+          require_env SSH_PRIVATE_KEY
+          require_env BLUEHOST_HOST
+          require_env BLUEHOST_USERNAME
+          require_env BLUEHOST_PUBLIC_PATH
+          require_env BLUEHOST_PRIVATE_PATH
 
-          if [ -z "${SSH_HOST:-}" ]; then
-            echo "Missing BLUEHOST_HOST variable"
-            exit 1
-          fi
+          echo "BLUEHOST_HOST is set"
+          echo "BLUEHOST_USERNAME is set"
+          echo "BLUEHOST_PUBLIC_PATH is set"
+          echo "BLUEHOST_PRIVATE_PATH is set"
+          echo "BLUEHOST_PORT=${BLUEHOST_PORT:-22}"
 
-          if [ -z "${SSH_USER:-}" ]; then
-            echo "Missing BLUEHOST_USERNAME variable"
-            exit 1
-          fi
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.BLUEHOST_SSH_KEY }}
+        run: |
+          set -euo pipefail
 
-          echo "Deploy target: ${SSH_USER}@${SSH_HOST}:${PORT}"
+          PORT="${BLUEHOST_PORT:-22}"
 
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
@@ -48,13 +65,13 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/bluehost_deploy_key
           chmod 600 ~/.ssh/bluehost_deploy_key
 
-          ssh-keyscan -p "$PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          ssh-keyscan -T 30 -p "$PORT" -H "$BLUEHOST_HOST" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
           cat > ~/.ssh/config <<EOF
           Host bluehost
-            HostName $SSH_HOST
-            User $SSH_USER
+            HostName $BLUEHOST_HOST
+            User $BLUEHOST_USERNAME
             Port $PORT
             IdentityFile ~/.ssh/bluehost_deploy_key
             IdentitiesOnly yes
@@ -67,24 +84,19 @@ jobs:
           ssh bluehost "echo 'SSH OK'; pwd"
 
       - name: Prepare Bluehost directories
-        env:
-          BLUEHOST_PUBLIC_PATH: ${{ vars.BLUEHOST_PUBLIC_PATH }}
-          BLUEHOST_PRIVATE_PATH: ${{ vars.BLUEHOST_PRIVATE_PATH }}
         run: |
           set -euo pipefail
 
           ssh bluehost "
-            mkdir -p '$BLUEHOST_PUBLIC_PATH'
-            mkdir -p '$BLUEHOST_PRIVATE_PATH'
-            mkdir -p '$BLUEHOST_PRIVATE_PATH/storage'
-            mkdir -p '$BLUEHOST_PRIVATE_PATH/logs'
-            chmod 700 '$BLUEHOST_PRIVATE_PATH/storage'
+            mkdir -p '$BLUEHOST_PUBLIC_PATH' &&
+            mkdir -p '$BLUEHOST_PRIVATE_PATH' &&
+            mkdir -p '$BLUEHOST_PRIVATE_PATH/storage' &&
+            mkdir -p '$BLUEHOST_PRIVATE_PATH/logs' &&
+            chmod 700 '$BLUEHOST_PRIVATE_PATH/storage' &&
             chmod 700 '$BLUEHOST_PRIVATE_PATH/logs'
           "
 
       - name: Deploy public files
-        env:
-          BLUEHOST_PUBLIC_PATH: ${{ vars.BLUEHOST_PUBLIC_PATH }}
         run: |
           set -euo pipefail
 
@@ -94,8 +106,6 @@ jobs:
             bluehost:"$BLUEHOST_PUBLIC_PATH"/
 
       - name: Deploy private app files
-        env:
-          BLUEHOST_PRIVATE_PATH: ${{ vars.BLUEHOST_PRIVATE_PATH }}
         run: |
           set -euo pipefail
 
@@ -110,22 +120,19 @@ jobs:
             bluehost:"$BLUEHOST_PRIVATE_PATH"/
 
       - name: Finalize permissions
-        env:
-          BLUEHOST_PUBLIC_PATH: ${{ vars.BLUEHOST_PUBLIC_PATH }}
-          BLUEHOST_PRIVATE_PATH: ${{ vars.BLUEHOST_PRIVATE_PATH }}
         run: |
           set -euo pipefail
 
           ssh bluehost "
-            find '$BLUEHOST_PUBLIC_PATH' -type d -exec chmod 755 {} \;
-            find '$BLUEHOST_PUBLIC_PATH' -type f -exec chmod 644 {} \;
+            find '$BLUEHOST_PUBLIC_PATH' -type d -exec chmod 755 {} \; &&
+            find '$BLUEHOST_PUBLIC_PATH' -type f -exec chmod 644 {} \; &&
 
-            find '$BLUEHOST_PRIVATE_PATH/app' -type d -exec chmod 755 {} \;
-            find '$BLUEHOST_PRIVATE_PATH/app' -type f -exec chmod 644 {} \;
+            find '$BLUEHOST_PRIVATE_PATH/app' -type d -exec chmod 755 {} \; &&
+            find '$BLUEHOST_PRIVATE_PATH/app' -type f -exec chmod 644 {} \; &&
 
-            chmod 644 '$BLUEHOST_PRIVATE_PATH/cron_check.php'
-            chmod 644 '$BLUEHOST_PRIVATE_PATH/.env.example'
+            chmod 644 '$BLUEHOST_PRIVATE_PATH/cron_check.php' &&
+            chmod 644 '$BLUEHOST_PRIVATE_PATH/.env.example' &&
 
-            if [ -f '$BLUEHOST_PRIVATE_PATH/.env' ]; then chmod 600 '$BLUEHOST_PRIVATE_PATH/.env'; fi
+            if [ -f '$BLUEHOST_PRIVATE_PATH/.env' ]; then chmod 600 '$BLUEHOST_PRIVATE_PATH/.env'; fi &&
             if [ -f '$BLUEHOST_PRIVATE_PATH/storage/headers.json' ]; then chmod 600 '$BLUEHOST_PRIVATE_PATH/storage/headers.json'; fi
           "
