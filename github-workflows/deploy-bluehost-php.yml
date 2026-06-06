@@ -1,0 +1,52 @@
+name: Deploy PHP app to Bluehost
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.BLUEHOST_SSH_KEY }}" > ~/.ssh/bluehost_deploy_key
+          chmod 600 ~/.ssh/bluehost_deploy_key
+          ssh-keyscan -p "${{ secrets.BLUEHOST_PORT || '22' }}" "${{ secrets.BLUEHOST_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Create remote directories
+        run: |
+          ssh -i ~/.ssh/bluehost_deploy_key -p "${{ secrets.BLUEHOST_PORT || '22' }}" "${{ secrets.BLUEHOST_USERNAME }}@${{ secrets.BLUEHOST_HOST }}" \
+            "mkdir -p '${{ secrets.BLUEHOST_PUBLIC_PATH }}' '${{ secrets.BLUEHOST_PRIVATE_PATH }}/app' '${{ secrets.BLUEHOST_PRIVATE_PATH }}/storage' '${{ secrets.BLUEHOST_PRIVATE_PATH }}/logs'"
+
+      - name: Deploy public web files
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/bluehost_deploy_key -p ${{ secrets.BLUEHOST_PORT || '22' }}" \
+            public/ \
+            "${{ secrets.BLUEHOST_USERNAME }}@${{ secrets.BLUEHOST_HOST }}:${{ secrets.BLUEHOST_PUBLIC_PATH }}/"
+
+      - name: Deploy private app files
+        run: |
+          rsync -az --delete \
+            --exclude='.env' \
+            --exclude='storage' \
+            --exclude='*.log' \
+            -e "ssh -i ~/.ssh/bluehost_deploy_key -p ${{ secrets.BLUEHOST_PORT || '22' }}" \
+            app/ \
+            "${{ secrets.BLUEHOST_USERNAME }}@${{ secrets.BLUEHOST_HOST }}:${{ secrets.BLUEHOST_PRIVATE_PATH }}/app/"
+
+          rsync -az \
+            -e "ssh -i ~/.ssh/bluehost_deploy_key -p ${{ secrets.BLUEHOST_PORT || '22' }}" \
+            cron_check.php .env.example README.md \
+            "${{ secrets.BLUEHOST_USERNAME }}@${{ secrets.BLUEHOST_HOST }}:${{ secrets.BLUEHOST_PRIVATE_PATH }}/"
+
+      - name: Set private permissions
+        run: |
+          ssh -i ~/.ssh/bluehost_deploy_key -p "${{ secrets.BLUEHOST_PORT || '22' }}" "${{ secrets.BLUEHOST_USERNAME }}@${{ secrets.BLUEHOST_HOST }}" \
+            "chmod 700 '${{ secrets.BLUEHOST_PRIVATE_PATH }}/storage' '${{ secrets.BLUEHOST_PRIVATE_PATH }}/logs' || true; chmod 600 '${{ secrets.BLUEHOST_PRIVATE_PATH }}/.env' '${{ secrets.BLUEHOST_PRIVATE_PATH }}/storage/headers.json' 2>/dev/null || true"

@@ -1,0 +1,7 @@
+.env
+storage/*
+!storage/.gitkeep
+*.log
+.DS_Store
+vendor/
+node_modules/
