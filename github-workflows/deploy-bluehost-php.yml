@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     # Uncomment this ONLY if your variables are under:
     # Settings > Environments > production
-    # environment: production
+    environment: production
 
     env:
       BLUEHOST_HOST: ${{ vars.BLUEHOST_HOST }}
