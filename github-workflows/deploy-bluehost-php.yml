@@ -25,6 +25,23 @@ jobs:
 
           PORT="${SSH_PORT:-22}"
 
+          if [ -z "${SSH_PRIVATE_KEY:-}" ]; then
+            echo "Missing BLUEHOST_SSH_KEY secret"
+            exit 1
+          fi
+
+          if [ -z "${SSH_HOST:-}" ]; then
+            echo "Missing BLUEHOST_HOST variable"
+            exit 1
+          fi
+
+          if [ -z "${SSH_USER:-}" ]; then
+            echo "Missing BLUEHOST_USERNAME variable"
+            exit 1
+          fi
+
+          echo "Deploy target: ${SSH_USER}@${SSH_HOST}:${PORT}"
+
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
