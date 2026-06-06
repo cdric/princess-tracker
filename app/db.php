@@ -310,6 +310,24 @@ SQL);
     return $stmt->fetchAll();
 }
 
+function delete_price_check(int $priceCheckId): void
+{
+    $stmt = db()->prepare('DELETE FROM price_checks WHERE id = ?');
+    $stmt->execute([$priceCheckId]);
+}
+
+function delete_orphaned_raw_api_responses(): void
+{
+    db()->exec(<<<SQL
+DELETE FROM raw_api_responses
+WHERE id NOT IN (
+    SELECT DISTINCT raw_response_id
+    FROM price_checks
+    WHERE raw_response_id IS NOT NULL
+)
+SQL);
+}
+
 function distinct_cruise_ids(): array
 {
     return db()->query('SELECT DISTINCT cruise_id FROM price_checks ORDER BY cruise_id')->fetchAll(PDO::FETCH_COLUMN) ?: [];

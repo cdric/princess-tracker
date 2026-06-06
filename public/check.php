@@ -7,7 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 try {
-    $rows = run_princess_check($_POST, 'manual');
+    $rows = run_princess_check(normalize_manual_check_params($_POST, is_admin()), 'manual');
     render_header('Price results');
 } catch (Throwable $e) {
     render_header('Price check failed');

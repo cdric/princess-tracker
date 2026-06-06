@@ -14,7 +14,6 @@ $currencyCode = env_value('DEFAULT_CURRENCY_CODE', 'USD');
 $guestCountry = env_value('DEFAULT_GUEST_COUNTRY', 'US');
 $guestHomeCity = env_value('DEFAULT_GUEST_HOME_CITY', 'LAX');
 $guestCount = env_value('DEFAULT_GUEST_COUNT', '2');
-$includeMisc = env_value('DEFAULT_INCLUDE_MISC', '1');
 
 $cruiseIds = active_watch_cruise_ids();
 if (!$cruiseIds) {
@@ -31,7 +30,6 @@ foreach ($cruiseIds as $cruiseId) {
             'guest_country' => $guestCountry,
             'guest_home_city' => $guestHomeCity,
             'guest_count' => $guestCount,
-            'include_misc' => $includeMisc,
         ], 'cron');
         foreach ($rows as $row) {
             echo sprintf(

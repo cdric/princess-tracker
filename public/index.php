@@ -11,28 +11,26 @@ render_header('Check cruise price');
       <input name="cruise_id" value="<?= h(env_value('DEFAULT_CRUISE_ID', 'H630')) ?>" required>
     </div>
     <div>
-      <label>Currency code</label>
-      <input name="currency_code" value="<?= h(env_value('DEFAULT_CURRENCY_CODE', 'USD')) ?>" required>
-    </div>
-    <div>
       <label>Guest country</label>
       <input name="guest_country" value="<?= h(env_value('DEFAULT_GUEST_COUNTRY', 'US')) ?>" required>
-    </div>
-    <div>
-      <label>Guest home city</label>
-      <input name="guest_home_city" value="<?= h(env_value('DEFAULT_GUEST_HOME_CITY', 'LAX')) ?>" required>
     </div>
     <div>
       <label>Guest count</label>
       <input type="number" min="1" max="5" name="guest_count" value="<?= h(env_value('DEFAULT_GUEST_COUNT', '2')) ?>" required>
     </div>
+    <?php if (is_admin()): ?>
     <div>
-      <label>Include misc/taxes flag</label>
-      <select name="include_misc">
-        <option value="1" selected>Yes</option>
-        <option value="0">No</option>
-      </select>
+      <label>Currency code</label>
+      <input name="currency_code" value="<?= h(env_value('DEFAULT_CURRENCY_CODE', 'USD')) ?>" required>
     </div>
+    <div>
+      <label>Guest home city</label>
+      <input name="guest_home_city" value="<?= h(env_value('DEFAULT_GUEST_HOME_CITY', 'LAX')) ?>" required>
+    </div>
+    <?php else: ?>
+      <input type="hidden" name="currency_code" value="<?= h(env_value('DEFAULT_CURRENCY_CODE', 'USD')) ?>">
+      <input type="hidden" name="guest_home_city" value="<?= h(env_value('DEFAULT_GUEST_HOME_CITY', 'LAX')) ?>">
+    <?php endif; ?>
     <div class="full-row">
       <button type="submit">Check price now</button>
     </div>

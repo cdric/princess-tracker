@@ -81,7 +81,6 @@ function build_princess_payload(array $params): array
     $guestCountry = trim((string)($params['guest_country'] ?? env_value('DEFAULT_GUEST_COUNTRY', 'US')));
     $guestHomeCity = trim((string)($params['guest_home_city'] ?? env_value('DEFAULT_GUEST_HOME_CITY', 'LAX')));
     $guestCount = max(1, min(5, (int)($params['guest_count'] ?? env_value('DEFAULT_GUEST_COUNT', '2'))));
-    $includeMisc = filter_var($params['include_misc'] ?? env_value('DEFAULT_INCLUDE_MISC', '1'), FILTER_VALIDATE_BOOLEAN);
 
     $guests = [];
     for ($i = 0; $i < $guestCount; $i++) {
@@ -106,12 +105,31 @@ function build_princess_payload(array $params): array
             'additionalGuestFare' => true,
             'averageFare' => false,
             'averageBrochureFare' => false,
-            'includeMisc' => $includeMisc,
+            'includeMisc' => true,
             'fareType' => 'BESTFARE',
             'roundUpFare' => true,
             'brochureFare' => true,
         ],
     ];
+}
+
+function normalize_manual_check_params(array $params, bool $isAdmin): array
+{
+    $normalized = [
+        'cruise_id' => trim((string)($params['cruise_id'] ?? env_value('DEFAULT_CRUISE_ID', 'H630'))),
+        'guest_country' => trim((string)($params['guest_country'] ?? env_value('DEFAULT_GUEST_COUNTRY', 'US'))),
+        'guest_count' => max(1, min(5, (int)($params['guest_count'] ?? env_value('DEFAULT_GUEST_COUNT', '2')))),
+    ];
+
+    if ($isAdmin) {
+        $normalized['currency_code'] = trim((string)($params['currency_code'] ?? env_value('DEFAULT_CURRENCY_CODE', 'USD')));
+        $normalized['guest_home_city'] = trim((string)($params['guest_home_city'] ?? env_value('DEFAULT_GUEST_HOME_CITY', 'LAX')));
+        return $normalized;
+    }
+
+    $normalized['currency_code'] = env_value('DEFAULT_CURRENCY_CODE', 'USD');
+    $normalized['guest_home_city'] = env_value('DEFAULT_GUEST_HOME_CITY', 'LAX');
+    return $normalized;
 }
 
 function headers_file_path(): string

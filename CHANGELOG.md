@@ -2,6 +2,20 @@
 
 All notable changes to this project are tracked in this file.
 
+## 1.3.0
+
+### User facing
+
+- Added admin controls to delete specific rows from the stored history table.
+- Restricted non-admin users so they cannot change currency or guest home city when running a manual price check.
+- Removed the misc/tax flag from the check flow.
+
+### Non user facing
+
+- Added server-side normalization of manual check parameters so restricted users cannot override locked fields via direct POST requests.
+- Added history deletion helpers for removing individual stored price-check rows and cleaning up orphaned raw API responses.
+- Simplified Princess payload construction by always sending the misc flag internally instead of exposing it as configurable input.
+
 ## 1.2.0
 
 ### User facing
