@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 if (!function_exists('str_starts_with')) {
     function str_starts_with($haystack, $needle) {
         return $needle === '' || strpos($haystack, $needle) === 0;
@@ -22,8 +24,6 @@ if (!function_exists('str_ends_with')) {
         return substr($haystack, -$length) === $needle;
     }
 }
-
-declare(strict_types=1);
 
 const APP_VERSION = '1.0.0-php';
 
