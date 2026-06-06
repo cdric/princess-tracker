@@ -108,6 +108,23 @@ jobs:
             public/ \
             bluehost:"$BLUEHOST_PUBLIC_PATH"/
 
+      - name: Configure public app bootstrap path
+        env:
+          BLUEHOST_PUBLIC_PATH: ${{ secrets.BLUEHOST_PUBLIC_PATH }}
+          BLUEHOST_PRIVATE_PATH: ${{ secrets.BLUEHOST_PRIVATE_PATH }}
+        run: |
+          set -euo pipefail
+
+          cat > /tmp/princess-tracker-htaccess <<EOF
+          SetEnv PRINCESS_BOOTSTRAP ${BLUEHOST_PRIVATE_PATH}/app/bootstrap.php
+          SetEnv PRINCESS_ENV_PATH ${BLUEHOST_PRIVATE_PATH}/.env
+          EOF
+
+          rsync -az \
+            -e "ssh" \
+            /tmp/princess-tracker-htaccess \
+            bluehost:"$BLUEHOST_PUBLIC_PATH/.htaccess"
+            
       - name: Deploy private app files
         env:
           BLUEHOST_PRIVATE_PATH: ${{ vars.BLUEHOST_PRIVATE_PATH }}
