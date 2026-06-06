@@ -130,7 +130,7 @@ jobs:
           }
 
           retry rsync -az --delete \
-            --exclude='*.log' \
+            --exclude='error_log' \
             -e "ssh" \
             public/ \
             bluehost:"$BLUEHOST_PUBLIC_PATH"/
