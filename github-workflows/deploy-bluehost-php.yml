@@ -9,16 +9,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # Uncomment this ONLY if your variables are under:
-    # Settings > Environments > production
-    environment: production
-
-    env:
-      BLUEHOST_HOST: ${{ vars.BLUEHOST_HOST }}
-      BLUEHOST_USERNAME: ${{ vars.BLUEHOST_USERNAME }}
-      BLUEHOST_PORT: ${{ vars.BLUEHOST_PORT }}
-      BLUEHOST_PUBLIC_PATH: ${{ vars.BLUEHOST_PUBLIC_PATH }}
-      BLUEHOST_PRIVATE_PATH: ${{ vars.BLUEHOST_PRIVATE_PATH }}
 
     steps:
       - name: Check out repo
@@ -27,6 +17,11 @@ jobs:
       - name: Validate deployment config
         env:
           SSH_PRIVATE_KEY: ${{ secrets.BLUEHOST_SSH_KEY }}
+          BLUEHOST_HOST: ${{ vars.BLUEHOST_HOST }}
+          BLUEHOST_USERNAME: ${{ vars.BLUEHOST_USERNAME }}
+          BLUEHOST_PORT: ${{ vars.BLUEHOST_PORT }}
+          BLUEHOST_PUBLIC_PATH: ${{ vars.BLUEHOST_PUBLIC_PATH }}
+          BLUEHOST_PRIVATE_PATH: ${{ vars.BLUEHOST_PRIVATE_PATH }}
         run: |
           set -euo pipefail
 
@@ -54,6 +49,9 @@ jobs:
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.BLUEHOST_SSH_KEY }}
+          BLUEHOST_HOST: ${{ vars.BLUEHOST_HOST }}
+          BLUEHOST_USERNAME: ${{ vars.BLUEHOST_USERNAME }}
+          BLUEHOST_PORT: ${{ vars.BLUEHOST_PORT }}
         run: |
           set -euo pipefail
 
@@ -84,6 +82,9 @@ jobs:
           ssh bluehost "echo 'SSH OK'; pwd"
 
       - name: Prepare Bluehost directories
+        env:
+          BLUEHOST_PUBLIC_PATH: ${{ vars.BLUEHOST_PUBLIC_PATH }}
+          BLUEHOST_PRIVATE_PATH: ${{ vars.BLUEHOST_PRIVATE_PATH }}
         run: |
           set -euo pipefail
 
@@ -97,6 +98,8 @@ jobs:
           "
 
       - name: Deploy public files
+        env:
+          BLUEHOST_PUBLIC_PATH: ${{ vars.BLUEHOST_PUBLIC_PATH }}
         run: |
           set -euo pipefail
 
@@ -106,6 +109,8 @@ jobs:
             bluehost:"$BLUEHOST_PUBLIC_PATH"/
 
       - name: Deploy private app files
+        env:
+          BLUEHOST_PRIVATE_PATH: ${{ vars.BLUEHOST_PRIVATE_PATH }}
         run: |
           set -euo pipefail
 
@@ -120,6 +125,9 @@ jobs:
             bluehost:"$BLUEHOST_PRIVATE_PATH"/
 
       - name: Finalize permissions
+        env:
+          BLUEHOST_PUBLIC_PATH: ${{ vars.BLUEHOST_PUBLIC_PATH }}
+          BLUEHOST_PRIVATE_PATH: ${{ vars.BLUEHOST_PRIVATE_PATH }}
         run: |
           set -euo pipefail
 
