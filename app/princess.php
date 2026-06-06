@@ -52,7 +52,7 @@ function build_princess_payload(array $params): array
     $guestCountry = trim((string)($params['guest_country'] ?? env_value('DEFAULT_GUEST_COUNTRY', 'US')));
     $guestHomeCity = trim((string)($params['guest_home_city'] ?? env_value('DEFAULT_GUEST_HOME_CITY', 'LAX')));
     $guestCount = max(1, min(5, (int)($params['guest_count'] ?? env_value('DEFAULT_GUEST_COUNT', '2'))));
-    $includeMisc = filter_var($params['include_misc'] ?? env_value('DEFAULT_INCLUDE_MISC', '1'), FILTER_VALIDATE_BOOL);
+    $includeMisc = filter_var($params['include_misc'] ?? env_value('DEFAULT_INCLUDE_MISC', '1'), FILTER_VALIDATE_BOOLEANEAN);
 
     $guests = [];
     for ($i = 0; $i < $guestCount; $i++) {
