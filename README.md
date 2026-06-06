@@ -39,7 +39,7 @@ Recommended production layout on Bluehost:
 /home/YOUR_BLUEHOST_USER/
   public_html/
     princess-tracker/          # public files from public/
-  apps/
+  github-apps/
     princess-tracker-private/  # app/, .env, storage/, cron_check.php
       app/
       storage/
