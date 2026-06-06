@@ -1,5 +1,28 @@
 <?php
 
+if (!function_exists('str_starts_with')) {
+    function str_starts_with($haystack, $needle) {
+        return $needle === '' || strpos($haystack, $needle) === 0;
+    }
+}
+
+if (!function_exists('str_contains')) {
+    function str_contains($haystack, $needle) {
+        return $needle === '' || strpos($haystack, $needle) !== false;
+    }
+}
+
+if (!function_exists('str_ends_with')) {
+    function str_ends_with($haystack, $needle) {
+        if ($needle === '') {
+            return true;
+        }
+
+        $length = strlen($needle);
+        return substr($haystack, -$length) === $needle;
+    }
+}
+
 declare(strict_types=1);
 
 const APP_VERSION = '1.0.0-php';
